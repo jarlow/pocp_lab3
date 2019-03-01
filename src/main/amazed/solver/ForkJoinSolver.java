@@ -32,8 +32,8 @@ public class ForkJoinSolver
      * @param maze   the maze to be searched
      */
 
-
-    protected static Set<Integer> visited = new HashSet<Integer>();
+    static Set<Integer> visited = new HashSet<Integer>();
+    static boolean found = false;
 
     public ForkJoinSolver(Maze maze)
     {
@@ -85,13 +85,13 @@ public class ForkJoinSolver
     */
     private List<Integer> parallelSearch()
     {
-        LinkedList<ForkJoinSolver> tasks = new LinkedList<ForkJoinSolver>(); 
+        ArrayList<ForkJoinSolver> tasks = new ArrayList<ForkJoinSolver>();
         // one player active on the maze at start
         int player = maze.newPlayer(start);
         // start with start node
         frontier.push(start);
         // as long as not all nodes have been processed
-        while (!frontier.empty()) {
+        while (!frontier.empty() && !found) {
             // get the new node to process
 
             int current = frontier.pop();
@@ -100,6 +100,7 @@ public class ForkJoinSolver
                 // move player to goal
                 maze.move(player, current);
                 // search finished: reconstruct and return path
+                found=true;
                 return pathFromTo(start, current);
             }
             // if current node has not been visited yet
@@ -130,35 +131,27 @@ public class ForkJoinSolver
                 /*
                     When give this.maze, new for has access to current state which is needed to compute the full path:
                         - predecessors, to remember the path it has taken to get to the current node
-                        - visited, should be global so all threads know what nodes have been visited 
-                            - OBS visited är static, glöm ej att ändra om det behövs
+                        - visited, should be global so all threads know what nodes have been visited
                         - start, a new start value, so it knows where to start
                 */
 
                 for (int i = 0; i < frontier.size() - 1; i++) {
-                    ForkJoinSolver firstTask = new ForkJoinSolver(maze);   
-                    int new_start = frontier.pop();
-                    firstTask.start = new_start;
-                    firstTask.predecessor = this.predecessor;
-                    firstTask.fork();
-                    tasks.add(firstTask);
+                    ForkJoinSolver newThread = new ForkJoinSolver(maze);
+                    int new_start = this.frontier.pop();
+                    newThread.start = new_start;
+                    newThread.predecessor = this.predecessor;
+                    newThread.fork();
+                    tasks.add(newThread);
                 }
 
             }
         }
-
-        LinkedList<List<Integer>> results = new LinkedList<List<Integer>>();
         for (ForkJoinSolver task: tasks) {
-            List<Integer> fork_result = task.join();
-        }
-        for (List<Integer> fork_result: results) {
-            if (fork_result != null) {
-                return pathFromTo(start, fork_result.get(fork_result.size() - 1));
+            List<Integer> result = task.join(); // extract results
+            if (result != null) {
+                return pathFromTo(start, result.get(result.size()-1));
             }
         }
-
-        
-
         // all nodes explored, no goal found
         return null;
     }
