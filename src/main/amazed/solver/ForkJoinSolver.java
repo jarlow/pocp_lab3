@@ -7,9 +7,6 @@ import java.util.ArrayList;
 import java.util.Map;
 import java.util.HashMap;
 import java.util.Set;
-import java.util.concurrent.ConcurrentSkipListSet;
-import java.util.concurrent.ForkJoinPool;
-import java.util.concurrent.RecursiveTask;
 import java.util.*;
 /**
  * <code>ForkJoinSolver</code> implements a solver for
@@ -34,6 +31,8 @@ public class ForkJoinSolver
 
     static Set<Integer> visited = new HashSet<Integer>();
     static boolean found = false;
+    static Map<Integer,Integer> wantToVisit = Collections.synchronizedMap(new HashMap<>());
+    int steps = 0;
 
     public ForkJoinSolver(Maze maze)
     {
@@ -72,6 +71,15 @@ public class ForkJoinSolver
      */
 
     
+    private synchronized void incrementHash(Map<Integer,Integer> map, Integer key ){
+        map.putIfAbsent(key,0);
+        map.put(key,map.get(key)+1);
+    }
+    private synchronized void decrementHash(Map<Integer,Integer> map, Integer key ){
+        map.putIfAbsent(key,0);
+        map.put(key,map.get(key)-1);
+    }
+
 
     @Override
     public List<Integer> compute()
@@ -93,41 +101,46 @@ public class ForkJoinSolver
         // as long as not all nodes have been processed
         while (!frontier.empty() && !found) {
             // get the new node to process
-
+            incrementHash(wantToVisit, frontier.peek());
             int current = frontier.pop();
+            System.out.println(wantToVisit.get(current));
             // if current node has a goal
             if (maze.hasGoal(current)) {
                 // move player to goal
                 maze.move(player, current);
                 // search finished: reconstruct and return path
                 found=true;
+                System.out.println("Start: " + start + " current: " + current);
                 return pathFromTo(start, current);
             }
             // if current node has not been visited yet
-            if (!visited.contains(current)) {
-                // move player to current node
-                maze.move(player, current);
-                // mark node as visited
-                writeToVisited(current);
-                //visited.add(current);
-                // for every node nb adjacent to current
-                for (int nb: maze.neighbors(current)) {
-                    // add nb to the nodes to be processed
-                    
-                    //frontier.push(nb);
-                    // if nb has not been already visited,
-                    // nb can be reached from current (i.e., current is nb's predecessor)
-                    if (!visited.contains(nb)) { 
-                        predecessor.put(nb, current);
-                        frontier.push(nb);
-                    }
-                }  
+                if (!handleVisited(-1, "read").contains(current) && (wantToVisit.get(current) == null || (wantToVisit.get(current) <= 1))) { // must also check if anyone else wants to go to this space
+                    // move player to current node
+                    steps++;
+                    maze.move(player, current);
+                    // mark node as visited
+                    handleVisited(current, "write");
+                    //decrementHash(wantToVisit,current);
+                    //visited.add(current);
+                    // for every node nb adjacent to current
+                    for (int nb : maze.neighbors(current)) {
+                        // add nb to the nodes to be processed
 
-            }
+                        //frontier.push(nb);
+                        // if nb has not been already visited,
+                        // nb can be reached from current (i.e., current is nb's predecessor)
+                        if (!handleVisited(-1, "read").contains(nb)) {
+                            predecessor.put(nb, current);
+                            frontier.push(nb);
+                            //incrementHash(wantToVisit, nb);
+                        }
+                    }
+
+                }
 
             //if there are more than 2 nodes in the frontier, split the tasks
             //else continue
-            if (frontier.size() >= 2) {
+            if (frontier.size() >= 2 && steps > forkAfter ){//&& (wantToVisit.get(current) == null || (wantToVisit.get(current) <= 1))) {
                 /*
                     When give this.maze, new for has access to current state which is needed to compute the full path:
                         - predecessors, to remember the path it has taken to get to the current node
@@ -149,6 +162,7 @@ public class ForkJoinSolver
         for (ForkJoinSolver task: tasks) {
             List<Integer> result = task.join(); // extract results
             if (result != null) {
+                System.out.println("my child found something!");
                 return pathFromTo(start, result.get(result.size()-1));
             }
         }
@@ -157,8 +171,14 @@ public class ForkJoinSolver
     }
 
 
-    private synchronized void writeToVisited(int node) {
-        visited.add(node);
+    private synchronized HashSet handleVisited(int node, String action) {
+        if (action.equals("write")) {
+            visited.add(node);
+            return new HashSet<Integer>();
+        }
+        else{
+            return (HashSet)visited;
+        }
     }
 
 }
