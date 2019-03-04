@@ -114,8 +114,11 @@ public class ForkJoinSolver
         frontier.push(start);
         // as long as not all nodes have been processed
         while (!frontier.empty() && !found) {
+            visited_lock.writeLock().lock();
             // get the new node to process
             int current = frontier.pop();
+            visited.add(current);
+            visited_lock.writeLock().unlock();
             // visited_lock.writeLock().lock();
             // visited.add(current);
             // visited_lock.writeLock().unlock();
@@ -138,37 +141,28 @@ public class ForkJoinSolver
                 return pathFromTo(i, current);
             }
                 // if current node has not been visited yet
-                visited_lock.readLock().lock(); 
-                if (just_started || !visited.contains(current)) {
-                    just_started = false;
-                    visited_lock.readLock().unlock();
-                    visited_lock.writeLock().lock();
-                    visited.add(current);
-                    visited_lock.writeLock().unlock();
-                    // move player to current node
-                    steps++;
-                    maze.move(player, current);
-                    // mark node as visited
-                    // visited_lock.writeLock().lock();
-                    // visited.add(current);
-                    // visited_lock.writeLock().unlock();
-                    // for every node nb adjacent to current
-                    for (int nb : maze.neighbors(current)) {
-                        // add nb to the nodes to be processed
+                // move player to current node
+                steps++;
+                maze.move(player, current);
+                // mark node as visited
+                // visited_lock.writeLock().lock();
+                // visited.add(current);
+                // visited_lock.writeLock().unlock();
+                // for every node nb adjacent to current
+                for (int nb : maze.neighbors(current)) {
+                    // add nb to the nodes to be processed
 
-                        //frontier.push(nb);
-                        // if nb has not been already visited,
-                        // nb can be reached from current (i.e., current is nb's predecessor)
-                        visited_lock.readLock().lock();
-                        if (!visited.contains(nb)) {
-                            predecessor.put(nb, current);
-                            frontier.push(nb);
-                        }
-                        visited_lock.readLock().unlock();
+                    //frontier.push(nb);
+                    // if nb has not been already visited,
+                    // nb can be reached from current (i.e., current is nb's predecessor)
+                    visited_lock.readLock().lock();
+                    if (!visited.contains(nb)) {
+                        predecessor.put(nb, current);
+                        frontier.push(nb);
                     }
-                }else {
                     visited_lock.readLock().unlock();
                 }
+                
 
             //if there are more than 2 nodes in the frontier, split the tasks
             //else continue
