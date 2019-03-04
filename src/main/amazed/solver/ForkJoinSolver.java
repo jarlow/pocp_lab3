@@ -8,6 +8,7 @@ import java.util.Map;
 import java.util.HashMap;
 import java.util.Set;
 import java.util.*;
+import java.util.concurrent.locks.ReentrantReadWriteLock;
 /**
  * <code>ForkJoinSolver</code> implements a solver for
  * <code>Maze</code> objects using a fork/join multi-thread
@@ -29,9 +30,10 @@ public class ForkJoinSolver
      * @param maze   the maze to be searched
      */
 
-    static Set<Integer> visited = new HashSet<Integer>();
+    static ReentrantReadWriteLock visited_lock = new ReentrantReadWriteLock();
+    static volatile Set<Integer> visited = new HashSet<Integer>();
     static boolean found = false;
-    static Map<Integer,Integer> wantToVisit = Collections.synchronizedMap(new HashMap<>());
+    //static Map<Integer,Integer> wantToVisit = Collections.synchronizedMap(new HashMap<>());
     int steps = 0;
 
     public ForkJoinSolver(Maze maze)
@@ -80,7 +82,6 @@ public class ForkJoinSolver
         map.put(key,map.get(key)-1);
     }
 
-
     @Override
     public List<Integer> compute()
     {
@@ -93,35 +94,64 @@ public class ForkJoinSolver
     */
     private List<Integer> parallelSearch()
     {
+        boolean just_started = true;
+        visited_lock.readLock().lock();
+        if (visited.contains(start)) {
+            visited_lock.readLock().unlock();
+            return null;
+        }else{
+            visited_lock.readLock().unlock();
+            visited_lock.writeLock().lock();
+            visited.add(start);
+            visited_lock.writeLock().unlock();
+            
+        }
         ArrayList<ForkJoinSolver> tasks = new ArrayList<ForkJoinSolver>();
         // one player active on the maze at start
         int player = maze.newPlayer(start);
+        
         // start with start node
         frontier.push(start);
         // as long as not all nodes have been processed
         while (!frontier.empty() && !found) {
             // get the new node to process
-            incrementHash(wantToVisit, frontier.peek());
             int current = frontier.pop();
-            System.out.println(wantToVisit.get(current));
+            // visited_lock.writeLock().lock();
+            // visited.add(current);
+            // visited_lock.writeLock().unlock();
+
             // if current node has a goal
             if (maze.hasGoal(current)) {
                 // move player to goal
                 maze.move(player, current);
                 // search finished: reconstruct and return path
                 found=true;
-                System.out.println("Start: " + start + " current: " + current);
-                return pathFromTo(start, current);
+
+                int i = predecessor.get(start);
+                while (true) {
+                    try {
+                        i = predecessor.get(i);
+                    }catch(Exception e) {
+                        break;
+                    }
+                }
+                return pathFromTo(i, current);
             }
-            // if current node has not been visited yet
-                if (!handleVisited(-1, "read").contains(current) && (wantToVisit.get(current) == null || (wantToVisit.get(current) <= 1))) { // must also check if anyone else wants to go to this space
+                // if current node has not been visited yet
+                visited_lock.readLock().lock(); 
+                if (just_started || !visited.contains(current)) {
+                    just_started = false;
+                    visited_lock.readLock().unlock();
+                    visited_lock.writeLock().lock();
+                    visited.add(current);
+                    visited_lock.writeLock().unlock();
                     // move player to current node
                     steps++;
                     maze.move(player, current);
                     // mark node as visited
-                    handleVisited(current, "write");
-                    //decrementHash(wantToVisit,current);
-                    //visited.add(current);
+                    // visited_lock.writeLock().lock();
+                    // visited.add(current);
+                    // visited_lock.writeLock().unlock();
                     // for every node nb adjacent to current
                     for (int nb : maze.neighbors(current)) {
                         // add nb to the nodes to be processed
@@ -129,13 +159,15 @@ public class ForkJoinSolver
                         //frontier.push(nb);
                         // if nb has not been already visited,
                         // nb can be reached from current (i.e., current is nb's predecessor)
-                        if (!handleVisited(-1, "read").contains(nb)) {
+                        visited_lock.readLock().lock();
+                        if (!visited.contains(nb)) {
                             predecessor.put(nb, current);
                             frontier.push(nb);
-                            //incrementHash(wantToVisit, nb);
                         }
+                        visited_lock.readLock().unlock();
                     }
-
+                }else {
+                    visited_lock.readLock().unlock();
                 }
 
             //if there are more than 2 nodes in the frontier, split the tasks
@@ -162,8 +194,11 @@ public class ForkJoinSolver
         for (ForkJoinSolver task: tasks) {
             List<Integer> result = task.join(); // extract results
             if (result != null) {
-                System.out.println("my child found something!");
-                return pathFromTo(start, result.get(result.size()-1));
+                //System.out.println("my child found something!");
+                //List<Integer> path = pathFromTo(start, result.get(result.size()-1));
+                //System.out.println(path);
+                //return pathFromTo(start, result.get(result.size()-1));
+                return result;
             }
         }
         // all nodes explored, no goal found
@@ -171,14 +206,15 @@ public class ForkJoinSolver
     }
 
 
-    private synchronized HashSet handleVisited(int node, String action) {
-        if (action.equals("write")) {
-            visited.add(node);
-            return new HashSet<Integer>();
-        }
-        else{
-            return (HashSet)visited;
-        }
-    }
+    // private HashSet handleVisited(int node, String action) {
+        
+    //     if (action.equals("write")) {
+    //         visited.add(node);
+    //         return new HashSet<Integer>();
+    //     }
+    //     else{
+    //         return (HashSet)visited;
+    //     }
+    // }
 
 }
