@@ -26,7 +26,7 @@ public class Main
     private static String map;
     private static boolean sequential = true;
     private static int forkAfter = 0;
-    private static int period = 200;
+    private static int period = 1;
 
     private static void parseArguments(String[] args)
     {

@@ -9,6 +9,8 @@ import java.util.HashMap;
 import java.util.Set;
 import java.util.*;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
+
+import com.sun.org.apache.xml.internal.dtm.ref.DTMDefaultBaseIterators.PrecedingIterator;
 /**
  * <code>ForkJoinSolver</code> implements a solver for
  * <code>Maze</code> objects using a fork/join multi-thread
@@ -57,7 +59,7 @@ public class ForkJoinSolver
     public ForkJoinSolver(Maze maze, int forkAfter)
     {
         this(maze);
-        this.forkAfter = forkAfter;
+        this.forkAfter = 0;
     }
 
     /**
@@ -72,15 +74,6 @@ public class ForkJoinSolver
      *           be found.
      */
 
-    
-    private synchronized void incrementHash(Map<Integer,Integer> map, Integer key ){
-        map.putIfAbsent(key,0);
-        map.put(key,map.get(key)+1);
-    }
-    private synchronized void decrementHash(Map<Integer,Integer> map, Integer key ){
-        map.putIfAbsent(key,0);
-        map.put(key,map.get(key)-1);
-    }
 
     @Override
     public List<Integer> compute()
@@ -94,121 +87,74 @@ public class ForkJoinSolver
     */
     private List<Integer> parallelSearch()
     {
-        boolean just_started = true;
-        visited_lock.readLock().lock();
-        if (visited.contains(start)) {
-            visited_lock.readLock().unlock();
-            return null;
-        }else{
-            visited_lock.readLock().unlock();
-            visited_lock.writeLock().lock();
-            visited.add(start);
-            visited_lock.writeLock().unlock();
-            
-        }
         ArrayList<ForkJoinSolver> tasks = new ArrayList<ForkJoinSolver>();
-        // one player active on the maze at start
-        int player = maze.newPlayer(start);
-        
-        // start with start node
-        frontier.push(start);
-        // as long as not all nodes have been processed
+        frontier.add(start);
+        System.out.println(start);
+        boolean player_has_been_created = false;
+        int player = 0;
         while (!frontier.empty() && !found) {
-            visited_lock.writeLock().lock();
-            // get the new node to process
+
             int current = frontier.pop();
-            visited.add(current);
+            visited_lock.writeLock().lock();
+            if (!visited.contains(current)) {
+                visited.add(current);
+            }else{
+                visited_lock.writeLock().unlock();
+                break;
+            }
             visited_lock.writeLock().unlock();
-            // visited_lock.writeLock().lock();
-            // visited.add(current);
-            // visited_lock.writeLock().unlock();
 
-            // if current node has a goal
+            if (!player_has_been_created) {
+                player = maze.newPlayer(current);
+                player_has_been_created = true;
+            }
+            
             if (maze.hasGoal(current)) {
-                // move player to goal
                 maze.move(player, current);
-                // search finished: reconstruct and return path
                 found=true;
-
-                int i = predecessor.get(start);
-                while (true) {
-                    try {
-                        i = predecessor.get(i);
-                    }catch(Exception e) {
-                        break;
-                    }
+                int counter = 1;
+                int i = predecessor.get(current);
+                while (predecessor.get(i) != null) {
+                    i = predecessor.get(i);
+                    counter += 1;
                 }
+                System.out.println("We are here: " + i + " counter: " + counter);
                 return pathFromTo(i, current);
             }
-                // if current node has not been visited yet
-                // move player to current node
-                steps++;
-                maze.move(player, current);
-                // mark node as visited
-                // visited_lock.writeLock().lock();
-                // visited.add(current);
-                // visited_lock.writeLock().unlock();
-                // for every node nb adjacent to current
-                for (int nb : maze.neighbors(current)) {
-                    // add nb to the nodes to be processed
-
-                    //frontier.push(nb);
-                    // if nb has not been already visited,
-                    // nb can be reached from current (i.e., current is nb's predecessor)
-                    visited_lock.readLock().lock();
-                    if (!visited.contains(nb)) {
-                        predecessor.put(nb, current);
-                        frontier.push(nb);
-                    }
-                    visited_lock.readLock().unlock();
-                }
+            
+            steps++;
+            maze.move(player, current);
+            
+            for (int nb : maze.neighbors(current)) {       
+                visited_lock.readLock().lock();             
+                if (!visited.contains(nb)) {
+                    visited_lock.readLock().unlock();  
+                    predecessor.put(nb, current);
+                    frontier.push(nb);
+                }else {
+                    visited_lock.readLock().unlock();  
+                } 
                 
-
-            //if there are more than 2 nodes in the frontier, split the tasks
-            //else continue
-            if (frontier.size() >= 2 && steps > forkAfter ){//&& (wantToVisit.get(current) == null || (wantToVisit.get(current) <= 1))) {
-                /*
-                    When give this.maze, new for has access to current state which is needed to compute the full path:
-                        - predecessors, to remember the path it has taken to get to the current node
-                        - visited, should be global so all threads know what nodes have been visited
-                        - start, a new start value, so it knows where to start
-                */
-
+            }
+                
+            if (frontier.size() >= 2 && steps > forkAfter ){  
                 for (int i = 0; i < frontier.size() - 1; i++) {
-                    ForkJoinSolver newThread = new ForkJoinSolver(maze);
                     int new_start = this.frontier.pop();
+                    ForkJoinSolver newThread = new ForkJoinSolver(maze);
                     newThread.start = new_start;
                     newThread.predecessor = this.predecessor;
                     newThread.fork();
                     tasks.add(newThread);
                 }
-
             }
+
         }
         for (ForkJoinSolver task: tasks) {
-            List<Integer> result = task.join(); // extract results
+            List<Integer> result = task.join();
             if (result != null) {
-                //System.out.println("my child found something!");
-                //List<Integer> path = pathFromTo(start, result.get(result.size()-1));
-                //System.out.println(path);
-                //return pathFromTo(start, result.get(result.size()-1));
                 return result;
             }
         }
-        // all nodes explored, no goal found
         return null;
     }
-
-
-    // private HashSet handleVisited(int node, String action) {
-        
-    //     if (action.equals("write")) {
-    //         visited.add(node);
-    //         return new HashSet<Integer>();
-    //     }
-    //     else{
-    //         return (HashSet)visited;
-    //     }
-    // }
-
 }
