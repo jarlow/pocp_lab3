@@ -7,8 +7,9 @@ import java.util.ArrayList;
 import java.util.Map;
 import java.util.HashMap;
 import java.util.Set;
+import java.util.*;
+import java.util.concurrent.locks.ReentrantReadWriteLock;
 import java.util.concurrent.ConcurrentSkipListSet;
-
 /**
  * <code>ForkJoinSolver</code> implements a solver for
  * <code>Maze</code> objects using a fork/join multi-thread
@@ -20,14 +21,22 @@ import java.util.concurrent.ConcurrentSkipListSet;
 
 
 public class ForkJoinSolver
-    extends SequentialSolver
+        extends SequentialSolver
 {
+
     /**
      * Creates a solver that searches in <code>maze</code> from the
      * start node to a goal.
      *
      * @param maze   the maze to be searched
      */
+
+    static ReentrantReadWriteLock visited_lock = new ReentrantReadWriteLock(true);
+    static volatile ConcurrentSkipListSet<Integer> visited = new ConcurrentSkipListSet<Integer>();
+    static boolean found = false;
+    //static Map<Integer,Integer> wantToVisit = Collections.synchronizedMap(new HashMap<>());
+    int steps = 0;
+
     public ForkJoinSolver(Maze maze)
     {
         super(maze);
@@ -44,10 +53,12 @@ public class ForkJoinSolver
      *                    <code>forkAfter &lt;= 0</code> the solver never
      *                    forks new tasks
      */
+
+
     public ForkJoinSolver(Maze maze, int forkAfter)
     {
         this(maze);
-        this.forkAfter = forkAfter;
+        this.forkAfter = 0;
     }
 
     /**
@@ -61,14 +72,87 @@ public class ForkJoinSolver
      *           goal node in the maze; <code>null</code> if such a path cannot
      *           be found.
      */
+
+
     @Override
     public List<Integer> compute()
     {
         return parallelSearch();
     }
 
+    /*
+    Should utilize java's fork/join. Add parallelism to the sequential depth-first search
+    Return the path if there is one, otherwise null
+    */
     private List<Integer> parallelSearch()
     {
+        ArrayList<ForkJoinSolver> tasks = new ArrayList<ForkJoinSolver>();
+        frontier.add(start);
+        boolean player_has_been_created = false;
+        int player = 99999;
+        while (!frontier.empty() && !found) {
+
+            int current = frontier.pop();
+            visited_lock.writeLock().lock();
+            if (!visited.contains(current)) {
+                visited.add(current);
+            }else{
+                visited_lock.writeLock().unlock();
+                break;
+            }
+           // System.out.println(visited.size());
+            visited_lock.writeLock().unlock();
+
+            if (!player_has_been_created) {
+                player = maze.newPlayer(current);
+                player_has_been_created = true;
+            }
+            steps++;
+            maze.move(player, current);
+
+            if (maze.hasGoal(current)) {
+                found=true;
+                int counter = 1;
+                int i = start;
+                while (predecessor.get(i) != null) {
+                    i = predecessor.get(i);
+                    counter += 1;
+                }
+                System.out.println("We are here: " + i + " counter: " + counter);
+                return pathFromTo(i, current);
+            }
+
+            for (int nb : maze.neighbors(current)) {
+                visited_lock.readLock().lock();
+                if (!visited.contains(nb)) {
+                    visited_lock.readLock().unlock();
+                    predecessor.put(nb, current);
+                    frontier.push(nb);
+                }else {
+                    visited_lock.readLock().unlock();
+                }
+
+            }
+
+            if (frontier.size() >= 2 && steps > forkAfter ){
+                for (int i = 0; i < frontier.size() - 1; i++) {
+                    int new_start = this.frontier.pop();
+                    ForkJoinSolver newThread = new ForkJoinSolver(maze, forkAfter);
+                    newThread.start = new_start;
+                    newThread.predecessor = this.predecessor;
+                    newThread.fork();
+                    tasks.add(newThread);
+                    steps=0;
+                }
+            }
+
+        }
+        for (ForkJoinSolver task: tasks) {
+            List<Integer> result = task.join();
+            if (result != null) {
+                return result;
+            }
+        }
         return null;
     }
 }
