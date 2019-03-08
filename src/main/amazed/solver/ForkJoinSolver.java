@@ -32,13 +32,8 @@ public class ForkJoinSolver
      * @param maze   the maze to be searched
      */
 
-   // static ReentrantReadWriteLock visited_lock = new ReentrantReadWriteLock(true);
-    //static volatile ConcurrentSkipListSet<Integer> visited = new ConcurrentSkipListSet<Integer>();
-    //static Set<Integer> visited = Collections.synchronizedSet(new HashSet<Integer>());
     static Set<Integer> visited = new HashSet<Integer>();
-    static ConcurrentHashMap<Integer,Integer> predecessor = new ConcurrentHashMap<Integer,Integer>();
     static volatile boolean found = false;
-    //static Map<Integer,Integer> wantToVisit = Collections.synchronizedMap(new HashMap<>());
     int steps = 0;
 
     public ForkJoinSolver(Maze maze)
@@ -90,20 +85,20 @@ public class ForkJoinSolver
     */
     private List<Integer> parallelSearch()
     {
+        System.out.println(predecessor.size());
         ArrayList<ForkJoinSolver> tasks = new ArrayList<ForkJoinSolver>();
         frontier.add(start);
         boolean player_has_been_created = false;
         int player = 99999;
         while (!frontier.empty() && !found) {
             int current = frontier.pop();
-            synchronized(visited) {
+            synchronized(visited) {                 // lock visited, then read, then write
                 if (!visited.contains(current)) {
                     visited.add(current);
                 } else {
-                    continue;
+                    continue;                       // current is in visited, go back to while(!frontier....)
                 }
-            }
-
+            }                                       // unlock visited
             if (!player_has_been_created) {
                 player = maze.newPlayer(current);
                 player_has_been_created = true;
@@ -115,17 +110,16 @@ public class ForkJoinSolver
                 found=true;
                 int counter = 1;
                 int i = current;
-                List<Integer> path = new LinkedList<>();
+                //List<Integer> path = new LinkedList<>();
                 while (predecessor.get(i) != null) {
-                    path.add(i);
+                 //   path.add(i);
                     i = predecessor.get(i);
                     counter += 1;
                 }
-                path.add(i);
-                Collections.reverse(path);
-                System.out.println(" This is i : " + i );
-                System.out.println("We are here: " + i + " counter: " + counter);
-                return path;
+                //path.add(i);
+                //Collections.reverse(path);
+                //return path;
+                return pathFromTo(i,current);
             }
 
             for (int nb : maze.neighbors(current)) {
@@ -140,10 +134,12 @@ public class ForkJoinSolver
             if (frontier.size() >= 2 && steps > forkAfter ){
                 for (int i = 0; i < frontier.size() - 1; i++) {
                     int new_start = this.frontier.pop();
-                    ForkJoinSolver newThread = new ForkJoinSolver(maze, forkAfter);
-                    newThread.start = new_start;
-                    newThread.fork();
-                    tasks.add(newThread);
+                    ForkJoinSolver child = new ForkJoinSolver(maze, forkAfter);
+                    child.start = new_start;
+                    HashMap<Integer, Integer> parentPredecessor  = new HashMap<Integer, Integer>(predecessor); // make a copy of predecessor
+                    child.predecessor = parentPredecessor;                                                      // give copy to child
+                    child.fork();
+                    tasks.add(child);
                     steps=0;
                 }
             }
@@ -152,13 +148,8 @@ public class ForkJoinSolver
         for (ForkJoinSolver task: tasks) {
             List<Integer> result = task.join();
             if (result != null) {
-                System.out.println("This is result size: " +result.size());
                 return result;
             }
-        }
-        if (frontier.size()!=0){
-            System.out.println("Found: " + found);
-            System.out.println("This is frontier size() " + frontier.size());
         }
         return null;
     }
