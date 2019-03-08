@@ -10,6 +10,7 @@ import java.util.Set;
 import java.util.*;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
 import java.util.concurrent.ConcurrentSkipListSet;
+import java.util.concurrent.ConcurrentHashMap;
 /**
  * <code>ForkJoinSolver</code> implements a solver for
  * <code>Maze</code> objects using a fork/join multi-thread
@@ -31,9 +32,11 @@ public class ForkJoinSolver
      * @param maze   the maze to be searched
      */
 
-    static ReentrantReadWriteLock visited_lock = new ReentrantReadWriteLock(true);
-    static volatile ConcurrentSkipListSet<Integer> visited = new ConcurrentSkipListSet<Integer>();
-    static boolean found = false;
+   // static ReentrantReadWriteLock visited_lock = new ReentrantReadWriteLock(true);
+    //static volatile ConcurrentSkipListSet<Integer> visited = new ConcurrentSkipListSet<Integer>();
+    static Set<Integer> visited = Collections.synchronizedSet(new HashSet<Integer>());
+    static volatile boolean found = false;
+    static ConcurrentHashMap<Integer,Integer> predecessor = new ConcurrentHashMap<Integer,Integer>();
     //static Map<Integer,Integer> wantToVisit = Collections.synchronizedMap(new HashMap<>());
     int steps = 0;
 
@@ -58,7 +61,7 @@ public class ForkJoinSolver
     public ForkJoinSolver(Maze maze, int forkAfter)
     {
         this(maze);
-        this.forkAfter = 0;
+        this.forkAfter = forkAfter;
     }
 
     /**
@@ -91,17 +94,15 @@ public class ForkJoinSolver
         boolean player_has_been_created = false;
         int player = 99999;
         while (!frontier.empty() && !found) {
-
             int current = frontier.pop();
-            visited_lock.writeLock().lock();
-            if (!visited.contains(current)) {
-                visited.add(current);
-            }else{
-                visited_lock.writeLock().unlock();
-                break;
+            synchronized(visited) {
+                if (!visited.contains(current)) {
+                    visited.add(current);
+                } else {
+                    continue;
+                }
             }
            // System.out.println(visited.size());
-            visited_lock.writeLock().unlock();
 
             if (!player_has_been_created) {
                 player = maze.newPlayer(current);
@@ -113,25 +114,30 @@ public class ForkJoinSolver
             if (maze.hasGoal(current)) {
                 found=true;
                 int counter = 1;
-                int i = start;
+                int i = current;
+                List<Integer> path = new LinkedList<>();
                 while (predecessor.get(i) != null) {
+                    path.add(i);
                     i = predecessor.get(i);
                     counter += 1;
                 }
+                path.add(i);
+                Collections.reverse(path);
+                System.out.println(" This is i : " + i );
                 System.out.println("We are here: " + i + " counter: " + counter);
-                return pathFromTo(i, current);
+                //List<Integer>returnvalue = pathFromTo(i, current);
+                //System.out.println("This is returnvalue innermost thread: " + path);
+                //System.out.println("This is predecessor: " + predecessor );
+                return path;
             }
 
             for (int nb : maze.neighbors(current)) {
-                visited_lock.readLock().lock();
-                if (!visited.contains(nb)) {
-                    visited_lock.readLock().unlock();
-                    predecessor.put(nb, current);
-                    frontier.push(nb);
-                }else {
-                    visited_lock.readLock().unlock();
+                synchronized (visited) {
+                    if (!visited.contains(nb)) {
+                        predecessor.put(nb, current);
+                        frontier.push(nb);
+                    }
                 }
-
             }
 
             if (frontier.size() >= 2 && steps > forkAfter ){
@@ -139,7 +145,6 @@ public class ForkJoinSolver
                     int new_start = this.frontier.pop();
                     ForkJoinSolver newThread = new ForkJoinSolver(maze, forkAfter);
                     newThread.start = new_start;
-                    newThread.predecessor = this.predecessor;
                     newThread.fork();
                     tasks.add(newThread);
                     steps=0;
@@ -150,8 +155,13 @@ public class ForkJoinSolver
         for (ForkJoinSolver task: tasks) {
             List<Integer> result = task.join();
             if (result != null) {
+                System.out.println("This is result size: " +result.size());
                 return result;
             }
+        }
+        if (frontier.size()!=0){
+            System.out.println("Found: " + found);
+            System.out.println("This is frontier size() " + frontier.size());
         }
         return null;
     }

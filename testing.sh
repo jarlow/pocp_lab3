@@ -1,8 +1,8 @@
 #!/bin/bash
-AMOUNTOFTESTS=50
+AMOUNTOFTESTS=150
 COUNTER=0
 for i in $(seq 1 $AMOUNTOFTESTS);do
-	MSG=$(java -cp src/main amazed.Main maps/medium.map parallel-3 -1)
+	MSG=$(java -cp src/main amazed.Main maps/medium.map parallel-$1 -1)
 	ALLTEXT=$(echo $MSG | grep "Goal found")
 	RESULT=$?
 	if [ "$RESULT" -ne 0 ];then
@@ -11,6 +11,7 @@ for i in $(seq 1 $AMOUNTOFTESTS);do
 		echo $MSG
 	else 
 		echo "Success"
+		#echo $MSG
 	fi
 done
 echo "This many failures out of $AMOUNTOFTESTS"
