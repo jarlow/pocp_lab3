@@ -34,9 +34,10 @@ public class ForkJoinSolver
 
    // static ReentrantReadWriteLock visited_lock = new ReentrantReadWriteLock(true);
     //static volatile ConcurrentSkipListSet<Integer> visited = new ConcurrentSkipListSet<Integer>();
-    static Set<Integer> visited = Collections.synchronizedSet(new HashSet<Integer>());
-    static volatile boolean found = false;
+    //static Set<Integer> visited = Collections.synchronizedSet(new HashSet<Integer>());
+    static Set<Integer> visited = new HashSet<Integer>();
     static ConcurrentHashMap<Integer,Integer> predecessor = new ConcurrentHashMap<Integer,Integer>();
+    static volatile boolean found = false;
     //static Map<Integer,Integer> wantToVisit = Collections.synchronizedMap(new HashMap<>());
     int steps = 0;
 
@@ -102,7 +103,6 @@ public class ForkJoinSolver
                     continue;
                 }
             }
-           // System.out.println(visited.size());
 
             if (!player_has_been_created) {
                 player = maze.newPlayer(current);
@@ -125,9 +125,6 @@ public class ForkJoinSolver
                 Collections.reverse(path);
                 System.out.println(" This is i : " + i );
                 System.out.println("We are here: " + i + " counter: " + counter);
-                //List<Integer>returnvalue = pathFromTo(i, current);
-                //System.out.println("This is returnvalue innermost thread: " + path);
-                //System.out.println("This is predecessor: " + predecessor );
                 return path;
             }
 
