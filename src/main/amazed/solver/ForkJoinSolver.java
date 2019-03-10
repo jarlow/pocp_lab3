@@ -85,7 +85,6 @@ public class ForkJoinSolver
     */
     private List<Integer> parallelSearch()
     {
-        System.out.println(predecessor.size());
         ArrayList<ForkJoinSolver> tasks = new ArrayList<ForkJoinSolver>();
         frontier.add(start);
         boolean player_has_been_created = false;
@@ -109,16 +108,11 @@ public class ForkJoinSolver
             if (maze.hasGoal(current)) {
                 found=true;
                 int counter = 1;
-                int i = current;
-                //List<Integer> path = new LinkedList<>();
+                int i = start;
                 while (predecessor.get(i) != null) {
-                 //   path.add(i);
                     i = predecessor.get(i);
                     counter += 1;
                 }
-                //path.add(i);
-                //Collections.reverse(path);
-                //return path;
                 return pathFromTo(i,current);
             }
 
@@ -133,11 +127,9 @@ public class ForkJoinSolver
 
             if (frontier.size() >= 2 && steps > forkAfter ){
                 for (int i = 0; i < frontier.size() - 1; i++) {
-                    int new_start = this.frontier.pop();
                     ForkJoinSolver child = new ForkJoinSolver(maze, forkAfter);
-                    child.start = new_start;
-                    HashMap<Integer, Integer> parentPredecessor  = new HashMap<Integer, Integer>(predecessor); // make a copy of predecessor
-                    child.predecessor = parentPredecessor;                                                      // give copy to child
+                    child.start = this.frontier.pop();
+                    child.predecessor = new HashMap<Integer, Integer>(predecessor); // give copy of the parents predecessor-map to the child
                     child.fork();
                     tasks.add(child);
                     steps=0;

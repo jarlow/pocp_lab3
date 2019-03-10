@@ -15,7 +15,7 @@ for i in $(seq 1 $AMOUNTOFTESTS);do
 		echo $MSG
 	else 
 		echo "$i Success"
-		#echo $MSG
+		echo $MSG
 	fi
 done
 echo "This many failures out of $AMOUNTOFTESTS :"
