@@ -1,7 +1,5 @@
-Initially we make sure that the pop value from the frontier is added to the visited set.
-
-When we add we make sure that the current thread is the only thread that is reading and writing to visited. 
-
-If the value is in visited, we continue with the next value in the frontier, otherwise continue using this value.
-
-We also made sure to lock the section where we read from the visited set and add neighbours to the predecessor, in order to avoid the problem of endless loops (for example 5 points to 4 which points to 5).
+This solution effectively turns the sequential depth-first search into a breadth-first search, since every time there is a choice for a thread to go in more than one direction, a new thread is spawned which itself does a depth-first search of its own, spawning new threads etc.
+The problem of synchronization between threads was solved by letting each thread have its own copy of predecessors and frontier, avoiding the need to synchronize. 
+The visited set is shared between threads, which means that it needs synchronization to work properly. 
+This was acheived by making sure that the pop value from the frontier is added to the visited set as soon as possible, and by making sure that the current thread is the only thread that is reading and writing to visited. It is also made sure that the section where visited is read from and neighbours are added to the predecessor and the frontier is locked, in order to avoid the problem of endless loops (for example 5 points to 4 which points to 5).
+After the neighbours have been added to the frontier/predecessor there is a check for if there are more than 1 in the frontier. If it is then an approperiate number of child-threads are created (frontier.size()-1 many), and the current thread continues along the path where children didnt get created, until it runs into a dead end and starts waiting for its children to join.
