@@ -8,9 +8,6 @@ import java.util.Map;
 import java.util.HashMap;
 import java.util.Set;
 import java.util.*;
-import java.util.concurrent.locks.ReentrantReadWriteLock;
-import java.util.concurrent.ConcurrentSkipListSet;
-import java.util.concurrent.ConcurrentHashMap;
 /**
  * <code>ForkJoinSolver</code> implements a solver for
  * <code>Maze</code> objects using a fork/join multi-thread
@@ -98,17 +95,17 @@ public class ForkJoinSolver
                     continue;                       // current is in visited, go back to while(!frontier....)
                 }
             }                                       // unlock visited
-            if (!player_has_been_created) {
-                player = maze.newPlayer(current);
+            if (!player_has_been_created) {	    // if its the first time this thread is in this part of the code,
+                player = maze.newPlayer(current);   // make new player model in gui
                 player_has_been_created = true;
             }
             steps++;
             maze.move(player, current);
 
-            if (maze.hasGoal(current)) {
-                found = true;
-                int counter = 1;
-                int i = start;
+            if (maze.hasGoal(current)) {	    // if goal is found, trace back steps from the
+                found = true;			    // starting-point of the thread that found the goal
+                int counter = 1;		    // until we reach the initial starting-point of
+                int i = start;			    // the first thread that was created
                 while (predecessor.get(i) != null) {
                     i = predecessor.get(i);
                     counter += 1;
@@ -116,18 +113,17 @@ public class ForkJoinSolver
                 return pathFromTo(i, current);
             }
 
-            for (int nb : maze.neighbors(current)) {
-                synchronized (visited) {
+            for (int nb : maze.neighbors(current)) { 
+                synchronized (visited) {	    // lock when we read from visited
                     if (!visited.contains(nb)) {
                         predecessor.put(nb, current);
                         frontier.push(nb);
-                        //steps++;
                     }
-                }
+                }			  	    // unlock
             }
 
-            if (frontier.size() >= 2 && steps > forkAfter) {
-                for (int i = 0; i < frontier.size() - 1; i++) {
+            if (frontier.size() >= 2 && steps > forkAfter) { 	// if there are atleast 2 paths to choose from, create paths-1 children
+                for (int i = 0; i < frontier.size() - 1; i++) {	// then continue along the path which dosnt have a child in it
                     ForkJoinSolver child = new ForkJoinSolver(maze, forkAfter);
                     child.start = this.frontier.pop();
                     child.predecessor = new HashMap<Integer, Integer>(predecessor); // give copy of the parents predecessor-map to the child
@@ -135,16 +131,10 @@ public class ForkJoinSolver
                     tasks.add(child);
                 }
                 steps = 0;
-                /*for (ForkJoinSolver task : tasks) {
-                    List<Integer> result = task.join();
-                    if (result != null) {
-                        return result;
-                    }
-                }*/
             }
         }
-        for (ForkJoinSolver task: tasks) {
-            List<Integer> result = task.join();
+        for (ForkJoinSolver task: tasks) {			// wait for the children to return. if they have a result, 
+            List<Integer> result = task.join();			// keep sending it "up" until we reach initial thread,
             if (result != null) {
                 return result;
             }
