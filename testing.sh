@@ -12,7 +12,7 @@ TIMEARR=()
 FAILCOUNTER=0
 
 for i in $(seq 1 $AMOUNTOFTESTS);do
-	MSG=$(java -cp src/main amazed.Main $MAPPATH parallel-$FORKAFTER -1)
+	MSG=$(java -Xss512m -cp src/main amazed.Main $MAPPATH parallel-$FORKAFTER -1)
 	ALLTEXT=$(echo $MSG | grep "Goal found")
 	RESULT=$?
 	TIMEARR+=($(echo $MSG | grep -Eo '[0-9]+'))
@@ -30,4 +30,4 @@ echo "This many failures out of $AMOUNTOFTESTS runs: $FAILCOUNTER"
 echo ""
 printf -v TIMEARR_d ',%s' "${TIMEARR[@]}"
 TIMEARR_d=${TIMEARR_d:1}
-echo $TIMEARR_d | tee results/test_${MAPNAME}_fork${FORKAFTER}_iterations${AMOUNTOFTESTS}.csv
+echo $TIMEARR_d | tee results/test_${MAPNAME}_fork${FORKAFTER}_iterations${AMOUNTOFTESTS}StepWaitBonus.csv

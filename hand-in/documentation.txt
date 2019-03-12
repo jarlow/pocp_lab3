@@ -1,0 +1,7 @@
+Initially we make sure that the pop value from the frontier is added to the visited set.
+
+When we add we make sure that the current thread is the only thread that is reading and writing to visited. 
+
+If the value is in visited, we continue with the next value in the frontier, otherwise continue using this value.
+
+We also made sure to lock the section where we read from the visited set and add neighbours to the predecessor, in order to avoid the problem of endless loops (for example 5 points to 4 which points to 5).

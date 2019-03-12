@@ -91,7 +91,7 @@ public class ForkJoinSolver
         Integer player = null;
         while (!frontier.empty() && !found) {
             int current = frontier.pop();
-            synchronized (visited) {                 // lock visited, then read, then write
+            synchronized(visited) {                 // lock visited, then read, then write
                 if (!visited.contains(current)) {
                     visited.add(current);
                 } else {
@@ -106,14 +106,14 @@ public class ForkJoinSolver
             maze.move(player, current);
 
             if (maze.hasGoal(current)) {
-                found = true;
+                found=true;
                 int counter = 1;
                 int i = start;
                 while (predecessor.get(i) != null) {
                     i = predecessor.get(i);
                     counter += 1;
                 }
-                return pathFromTo(i, current);
+                return pathFromTo(i,current);
             }
 
             for (int nb : maze.neighbors(current)) {
@@ -121,27 +121,26 @@ public class ForkJoinSolver
                     if (!visited.contains(nb)) {
                         predecessor.put(nb, current);
                         frontier.push(nb);
-                        //steps++;
                     }
                 }
             }
 
-            if (frontier.size() >= 2 && steps > forkAfter) {
-                for (int i = 0; i < frontier.size() - 1; i++) {
+            if (frontier.size() >= 2 && steps > forkAfter ){
+                for (int i = 0; i < frontier.size(); i++) {
                     ForkJoinSolver child = new ForkJoinSolver(maze, forkAfter);
                     child.start = this.frontier.pop();
                     child.predecessor = new HashMap<Integer, Integer>(predecessor); // give copy of the parents predecessor-map to the child
                     child.fork();
                     tasks.add(child);
+                    steps=0;
                 }
-                steps = 0;
-                /*for (ForkJoinSolver task : tasks) {
-                    List<Integer> result = task.join();
-                    if (result != null) {
-                        return result;
-                    }
-                }*/
-            }
+        		for (ForkJoinSolver task: tasks) {
+           			List<Integer> result = task.join();
+            		if (result != null) {
+                		return result;
+            		}
+				}
+           }
         }
         for (ForkJoinSolver task: tasks) {
             List<Integer> result = task.join();
