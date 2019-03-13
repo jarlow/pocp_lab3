@@ -1,0 +1,2 @@
+changed line ForkJoinPool pool = ForkJoinPool.commonPool(); in Amazed.java to be:
+ForkJoinPool pool = new ForkJoinPool(n); where n is either 2 or 20.

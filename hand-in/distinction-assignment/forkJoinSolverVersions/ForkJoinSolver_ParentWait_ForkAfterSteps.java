@@ -132,8 +132,8 @@ public class ForkJoinSolver
                     child.predecessor = new HashMap<Integer, Integer>(predecessor); // give copy of the parents predecessor-map to the child
                     child.fork();
                     tasks.add(child);
-                    steps=0;
                 }
+                steps=0;
         		for (ForkJoinSolver task: tasks) {
            			List<Integer> result = task.join();
             		if (result != null) {

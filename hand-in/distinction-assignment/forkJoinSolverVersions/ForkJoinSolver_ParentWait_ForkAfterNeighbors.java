@@ -126,16 +126,21 @@ public class ForkJoinSolver
             }
 
             if (frontier.size() >= 2 && steps > forkAfter ){
-                for (int i = 0; i < frontier.size() - 1; i++) {
+                for (int i = 0; i < frontier.size(); i++) {
                     ForkJoinSolver child = new ForkJoinSolver(maze, forkAfter);
                     child.start = this.frontier.pop();
                     child.predecessor = new HashMap<Integer, Integer>(predecessor); // give copy of the parents predecessor-map to the child
                     child.fork();
                     tasks.add(child);
+                    steps=0;
                 }
-				steps=0;
-            }
-
+        	for (ForkJoinSolver task: tasks) {
+           		List<Integer> result = task.join();
+            		if (result != null) {
+                		return result;
+            		}
+				}
+           }
         }
         for (ForkJoinSolver task: tasks) {
             List<Integer> result = task.join();
