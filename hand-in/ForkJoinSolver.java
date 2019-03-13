@@ -7,7 +7,9 @@ import java.util.ArrayList;
 import java.util.Map;
 import java.util.HashMap;
 import java.util.Set;
-import java.util.*;
+import java.util.HashSet;
+import java.util.concurrent.ConcurrentSkipListSet;
+
 /**
  * <code>ForkJoinSolver</code> implements a solver for
  * <code>Maze</code> objects using a fork/join multi-thread
@@ -104,11 +106,9 @@ public class ForkJoinSolver
 
             if (maze.hasGoal(current)) {	    // if goal is found, trace back steps from the
                 found = true;			    // starting-point of the thread that found the goal
-                int counter = 1;		    // until we reach the initial starting-point of
-                int i = start;			    // the first thread that was created
-                while (predecessor.get(i) != null) {
+                int i = start;			    // until we reach the initial starting-point of
+                while (predecessor.get(i) != null) {// the first thread that was created
                     i = predecessor.get(i);
-                    counter += 1;
                 }
                 return pathFromTo(i, current);
             }
